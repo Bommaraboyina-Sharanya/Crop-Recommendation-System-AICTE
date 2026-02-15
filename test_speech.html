@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech Recognition Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-btn {
+            padding: 15px 30px;
+            font-size: 18px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        .test-btn:hover {
+            background: #45a049;
+        }
+        .test-btn.listening {
+            background: #ff4444;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            min-height: 50px;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 10px;
+            background: #333;
+            color: #0f0;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log div {
+            margin: 2px 0;
+        }
+        .error {
+            color: #ff4444;
+        }
+        .success {
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎤 Speech Recognition Test</h1>
+    
+    <div>
+        <p><strong>Browser Support:</strong> <span id="browserSupport"></span></p>
+        <p><strong>HTTPS Status:</strong> <span id="httpsStatus"></span></p>
+    </div>
+    
+    <button class="test-btn" id="testBtn" onclick="testSpeech()">
+        🎤 Click and Speak
+    </button>
+    
+    <div class="result">
+        <strong>Result:</strong>
+        <div id="result">Click the button and speak...</div>
+    </div>
+    
+    <div class="log">
+        <strong>Debug Log:</strong>
+        <div id="log"></div>
+    </div>
+    
+    <script>
+        let recognition;
+        let isActive = false;
+        
+        function addLog(message, type = 'normal') {
+            const log = document.getElementById('log');
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Check browser support
+        const supportSpan = document.getElementById('browserSupport');
+        const httpsSpan = document.getElementById('httpsStatus');
+        
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            supportSpan.textContent = '✅ Supported';
+            supportSpan.className = 'success';
+            addLog('Speech recognition is supported', 'success');
+            
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+            recognition.lang = 'en-US';
+            
+            addLog('Recognition object created', 'success');
+        } else {
+            supportSpan.textContent = '❌ Not Supported';
+            supportSpan.className = 'error';
+            addLog('Speech recognition is NOT supported in this browser', 'error');
+        }
+        
+        // Check HTTPS
+        if (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            httpsSpan.textContent = '✅ OK';
+            httpsSpan.className = 'success';
+            addLog('Protocol is secure or localhost', 'success');
+        } else {
+            httpsSpan.textContent = '⚠️ HTTP (may not work)';
+            httpsSpan.className = 'error';
+            addLog('WARNING: Not using HTTPS - speech may not work', 'error');
+        }
+        
+        function testSpeech() {
+            if (!recognition) {
+                alert('Speech recognition not supported');
+                return;
+            }
+            
+            if (isActive) {
+                addLog('Stopping recognition...', 'normal');
+                try {
+                    recognition.stop();
+                } catch (e) {
+                    addLog('Error stopping: ' + e.message, 'error');
+                }
+                return;
+            }
+            
+            const btn = document.getElementById('testBtn');
+            const result = document.getElementById('result');
+            
+            btn.classList.add('listening');
+            btn.textContent = '🎤 Listening... (click to stop)';
+            result.textContent = 'Listening...';
+            
+            addLog('Starting recognition...', 'normal');
+            
+            recognition.onstart = () => {
+                isActive = true;
+                addLog('✅ Recognition started successfully!', 'success');
+            };
+            
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                const confidence = event.results[0][0].confidence;
+                result.textContent = transcript;
+                addLog(`Result: "${transcript}" (confidence: ${(confidence * 100).toFixed(1)}%)`, 'success');
+            };
+            
+            recognition.onerror = (event) => {
+                addLog(`❌ ERROR: ${event.error}`, 'error');
+                if (event.error === 'not-allowed') {
+                    addLog('Microphone permission denied!', 'error');
+                    result.textContent = 'Microphone permission denied. Please allow access.';
+                } else if (event.error === 'no-speech') {
+                    addLog('No speech detected', 'error');
+                    result.textContent = 'No speech detected. Try speaking louder.';
+                } else if (event.error === 'audio-capture') {
+                    addLog('No microphone found', 'error');
+                    result.textContent = 'No microphone found. Check your device.';
+                } else if (event.error === 'network') {
+                    addLog('Network error - need internet connection', 'error');
+                    result.textContent = 'Network error. Check internet connection.';
+                } else {
+                    result.textContent = `Error: ${event.error}`;
+                }
+                
+                btn.classList.remove('listening');
+                btn.textContent = '🎤 Click and Speak';
+                isActive = false;
+            };
+            
+            recognition.onend = () => {
+                addLog('Recognition ended', 'normal');
+                btn.classList.remove('listening');
+                btn.textContent = '🎤 Click and Speak';
+                isActive = false;
+            };
+            
+            try {
+                recognition.start();
+                addLog('Recognition.start() called', 'normal');
+            } catch (error) {
+                addLog(`❌ Exception: ${error.name} - ${error.message}`, 'error');
+                result.textContent = `Error: ${error.message}`;
+                btn.classList.remove('listening');
+                btn.textContent = '🎤 Click and Speak';
+                isActive = false;
+            }
+        }
+        
+        addLog('Test page loaded successfully', 'success');
+    </script>
+</body>
+</html>
